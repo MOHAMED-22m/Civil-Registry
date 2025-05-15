@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>نظام إدارة البيانات</title>
+    <script src="database.js" defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #098890;
+            text-align: center;
+        }
+        button, input[type="submit"] {
+            background-color: #098890;
+            border: none;
+            padding: 10px 20px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover, input[type="submit"]:hover {
+            background-color: #065c5c;
+        }
+        .flash {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #444;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #444;
+            text-align: right;
+        }
+        th {
+            background-color: #098890;
+            color: #fff;
+        }
+        tr:nth-child(even) {
+            background-color: #333;
+        }
+        .hidden {
+            display: none;
+        }
+        .menu {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>نظام إدارة البيانات</h1>
+        
+        <div class="menu">
+            <button onclick="showPage('home')">الصفحة الرئيسية</button>
+            <button onclick="showPage('enter_data')">إدخال بيانات</button>
+            <button onclick="showPage('inquiry')">بحث عن بيانات</button>
+        </div>
+        
+        <div id="flash-message" class="flash hidden"></div>
+        
+        <!-- الصفحة الرئيسية -->
+        <div id="home-page" class="page active">
+            <p>مرحبًا بك في نظام إدارة البيانات. يرجى اختيار أحد الخيارات من القائمة أعلاه.</p>
+            <p>عدد السجلات المخزنة: <span id="records-count">0</span></p>
+        </div>
+        
+        <!-- صفحة إدخال البيانات -->
+        <div id="enter_data-page" class="page">
+            <h2>إدخال بيانات جديدة</h2>
+            <form id="data-form">
+                <div class="form-group">
+                    <label for="name">الاسم الكامل:</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">رقم الهاتف:</label>
+                    <input type="text" id="phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="national_id">رقم الهوية:</label>
+                    <input type="text" id="national_id" required>
+                </div>
+                <div class="form-group">
+                    <label for="address">العنوان:</label>
+                    <input type="text" id="address">
+                </div>
+                <input type="submit" value="حفظ البيانات">
+            </form>
+        </div>
+        
+        <!-- صفحة البحث -->
+        <div id="inquiry-page" class="page">
+            <h2>بحث عن بيانات</h2>
+            <input type="text" id="search-input" placeholder="ابحث هنا...">
+            <button onclick="searchData()">بحث</button>
+            
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>الاسم</th>
+                        <th>الهاتف</th>
+                        <th>رقم الهوية</th>
+                        <th>العنوان</th>
+                        <th>إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // استيراد الدوال من ملف database.js
+        const db = window.database;
+        
+        // تهيئة التطبيق
+        document.addEventListener('DOMContentLoaded', () => {
+            db.initDB();
+            updateRecordsCount();
+            
+            // إعداد مستمعي الأحداث
+            document.getElementById('data-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveRecord();
+            });
+        });
+        
+        // عرض الصفحات
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(`${pageId}-page`).classList.add('active');
+            
+            if (pageId === 'inquiry') {
+                displayAllRecords();
+            }
+        }
+        
+        // عرض رسالة
+        function showMessage(message, type) {
+            const msg = document.getElementById('flash-message');
+            msg.textContent = message;
+            msg.className = `flash ${type}`;
+            msg.classList.remove('hidden');
+            
+            setTimeout(() => {
+                msg.classList.add('hidden');
+            }, 3000);
+        }
+        
+        // حفظ سجل جديد
+        function saveRecord() {
+            const record = {
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                national_id: document.getElementById('national_id').value,
+                address: document.getElementById('address').value
+            };
+            
+            db.addRecord(record);
+            showMessage('تم حفظ البيانات بنجاح', 'success');
+            document.getElementById('data-form').reset();
+            updateRecordsCount();
+        }
+        
+        // عرض جميع السجلات
+        function displayAllRecords() {
+            const records = db.getAllRecords();
+            displayRecords(records);
+        }
+        
+        // البحث في السجلات
+        function searchData() {
+            const query = document.getElementById('search-input').value;
+            const results = db.searchRecords(query);
+            displayRecords(results);
+        }
+        
+        // عرض السجلات في الجدول
+        function displayRecords(records) {
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+            
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد نتائج</td></tr>';
+                return;
+            }
+            
+            records.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${record.name}</td>
+                    <td>${record.phone}</td>
+                    <td>${record.national_id}</td>
+                    <td>${record.address || '-'}</td>
+                    <td><button onclick="deleteRecord(${record.id})">حذف</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // حذف سجل
+        function deleteRecord(id) {
+            if (confirm('هل أنت متأكد من حذف هذا السجل؟')) {
+                db.deleteRecord(id);
+                showMessage('تم حذف السجل بنجاح', 'success');
+                displayAllRecords();
+                updateRecordsCount();
+            }
+        }
+        
+        // تحديث عدد السجلات
+        function updateRecordsCount() {
+            document.getElementById('records-count').textContent = db.getAllRecords().length;
+        }
+    </script>
+</body>
+                </html>
